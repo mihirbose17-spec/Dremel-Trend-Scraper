@@ -1,0 +1,35 @@
+name: Daily Trend Scraper
+
+# This tells the robot WHEN to wake up
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs at 00:00 UTC every day
+  workflow_dispatch: # This gives you a button to trigger it manually anytime!
+
+jobs:
+  run-scraper:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Grab your code from the vault
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 2. Install the Python Engine
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # 3. Install all necessary libraries
+      - name: Install Dependencies
+        run: |
+          pip install pandas gspread oauth2client google-api-python-client spacy python-dotenv
+          python -m spacy download en_core_web_sm
+          
+      # 4. Run the scraper using your hidden secrets
+      - name: Execute Scraper Script
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python scraper.py
