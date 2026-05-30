@@ -1,3 +1,13 @@
+import sys
+import subprocess
+
+# --- AUTO-INSTALLER: Forces the current Python brain to get the library ---
+try:
+    import docx
+except ModuleNotFoundError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "python-docx"])
+    import docx
+
 import os
 import streamlit as st
 import pandas as pd
@@ -6,6 +16,10 @@ import google.generativeai as genai
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
+from io import BytesIO
+
+# This must be the very first Streamlit command!
+st.set_page_config(page_title="Dremel AI Hub", page_icon="🔧", layout="wide")
 
 # --- 1. CONFIGURATION & AI ---
 load_dotenv()
@@ -20,9 +34,6 @@ if not GEMINI_KEY:
 
 if GEMINI_KEY:
     genai.configure(api_key=GEMINI_KEY)
-
-# This must be the very first Streamlit command!
-st.set_page_config(page_title="Dremel AI Hub", page_icon="🔧", layout="wide")
 
 # --- 2. DREMEL THEME INJECTION ---
 st.markdown("""
@@ -100,7 +111,6 @@ except Exception:
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🎛️ App Navigation")
 
-# THE NEW NAVIGATION DROPDOWN (Added "ℹ️ About the Project")
 page_selection = st.sidebar.selectbox(
     "Select a Page:",
     [
@@ -131,7 +141,7 @@ if page_selection == "🚀 Live Tools":
             </div>
         """, unsafe_allow_html=True)
 
-        TABLEAU_URL = "https://public.tableau.com/views/Dremel_TrendsDashboard/LiveDashboard?:language=en-US&publish=yes&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link" + "?:embed=yes&:showVizHome=no"
+        TABLEAU_URL = "https://public.tableau.com/views/Dremel_TrendsDashboard/LiveDashboard?:language=en-US&publish=yes&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link?:embed=yes&:showVizHome=no"
         st.components.v1.iframe(TABLEAU_URL, width=1200, height=700, scrolling=True)
 
     if show_dashboard and show_ai:
@@ -155,9 +165,19 @@ if page_selection == "🚀 Live Tools":
             selected_trend = st.selectbox("Click inside the box to search or select a hot topic:", unique_keywords)
             st.write("")
 
+            # --- Session State to save AI memory during downloads ---
+            if "ai_raw_text" not in st.session_state:
+                st.session_state.ai_raw_text = None
+            if "current_trend" not in st.session_state:
+                st.session_state.current_trend = None
+
+            # Reset the text if the user picks a new trend
+            if st.session_state.current_trend != selected_trend:
+                st.session_state.ai_raw_text = None
+                st.session_state.current_trend = selected_trend
+
             if st.button("⚡ Activate AI Virtual Managers", type="primary"):
                 with st.spinner(f"Coordinating with virtual managers to analyze '{selected_trend}'..."):
-
                     prompt = f"""
                     You are a team of expert digital marketing managers at Dremel UK. 
                     The automated data engine has identified '{selected_trend}' as a major rising trend on YouTube UK.
@@ -176,55 +196,99 @@ if page_selection == "🚀 Live Tools":
                     [PRODUCT]
                     - Bullet 1
                     """
-
                     model = genai.GenerativeModel('gemini-3.5-flash')
                     response = model.generate_content(prompt)
-                    raw_text = response.text
+                    st.session_state.ai_raw_text = response.text
+
+            # --- RENDER THE TABS & DOCUMENT GENERATOR ---
+            if st.session_state.ai_raw_text:
+                def get_section(text, tag):
+                    try:
+                        parts = text.split(f"[{tag}]")
+                        if len(parts) > 1:
+                            return parts[1].split("[")[0].strip()
+                        return "Strategy formulation in progress..."
+                    except:
+                        return "Strategy formulation in progress..."
 
 
-                    def get_section(text, tag):
-                        try:
-                            parts = text.split(f"[{tag}]")
-                            if len(parts) > 1:
-                                return parts[1].split("[")[0].strip()
-                            return "Strategy formulation in progress..."
-                        except:
-                            return "Strategy formulation in progress..."
+                content_strat = get_section(st.session_state.ai_raw_text, "CONTENT")
+                social_strat = get_section(st.session_state.ai_raw_text, "SOCIAL")
+                email_strat = get_section(st.session_state.ai_raw_text, "EMAIL")
+                web_strat = get_section(st.session_state.ai_raw_text, "WEBSITE")
+                ecom_strat = get_section(st.session_state.ai_raw_text, "ECOMMERCE")
+                prod_strat = get_section(st.session_state.ai_raw_text, "PRODUCT")
+
+                st.markdown("---")
+                st.subheader(f"📋 Operational Action Plan: {selected_trend.upper()}")
+
+                tabs = st.tabs([
+                    "Content Manager", "Social Media", "Email Marketing",
+                    "Website Manager", "3rd Party E-Com", "Product Manager"
+                ])
+
+                manager_data = [
+                    ("Content Manager", "🎬 Video & Content Strategy", content_strat),
+                    ("Social Media", "📱 Social Media & Influencer Partnerships", social_strat),
+                    ("Email Marketing", "✉️ Email Campaign & Retention", email_strat),
+                    ("Website Manager", "🌐 Homepage & Landing Page Optimization", web_strat),
+                    ("3rd Party E-Com", "🛍️ Amazon & 3rd Party Retail Channels", ecom_strat),
+                    ("Product Manager", "🛠️ Product Bundling & Accessory Focus", prod_strat)
+                ]
 
 
-                    content_strat = get_section(raw_text, "CONTENT")
-                    social_strat = get_section(raw_text, "SOCIAL")
-                    email_strat = get_section(raw_text, "EMAIL")
-                    web_strat = get_section(raw_text, "WEBSITE")
-                    ecom_strat = get_section(raw_text, "ECOMMERCE")
-                    prod_strat = get_section(raw_text, "PRODUCT")
+                # --- The AI Document Generator Engine ---
+                def create_docx(manager_role, strategy_bullets, trend):
+                    deep_dive_prompt = f"""
+                    You are a Senior {manager_role} at Dremel. You need to hand off the following strategy to a junior coordinator for immediate execution.
+                    The trending topic is: {trend}.
+                    The high-level strategy is: 
+                    {strategy_bullets}
 
-                    st.markdown("---")
-                    st.subheader(f"📋 Operational Action Plan: {selected_trend.upper()}")
+                    TONE & SAFETY DIRECTIVE:
+                    Analyze the trend '{trend}'. 
+                    - If it involves heavy-duty, complex, or serious DIY work (e.g., cutting, metalwork, routing), adopt a highly professional tone and include strict, specific safety precautions (PPE, proper tool handling).
+                    - If it is a fun, craft-based, or light make-at-home project (e.g., jewelry, simple decor), adopt an enthusiastic, creative tone, but still explicitly mention essential basic safety tips.
 
-                    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-                        "Content Manager", "Social Media", "Email Marketing",
-                        "Website Manager", "3rd Party E-Com", "Product Manager"
-                    ])
+                    Write a highly detailed, step-by-step implementation brief. The structure must be clear and leave zero confusion for the junior employee.
+                    Include exactly these sections:
+                    1. Exact Actionable Steps for each bullet point.
+                    2. Specifications: Required channels, image aspect ratios, hashtags, specific Dremel tool requirements, or design guidelines where relevant.
+                    3. UGC Strategy: A specific playbook on how to source, incentivize, and integrate User Generated Content (UGC) for this campaign.
+                    4. Success Metrics: KPIs the junior employee should track.
 
-                    with tab1:
-                        st.info("🎬 Video & Content Strategy")
-                        st.write(content_strat)
-                    with tab2:
-                        st.info("📱 Social Media & Influencer Partnerships")
-                        st.write(social_strat)
-                    with tab3:
-                        st.info("✉️ Email Campaign & Retention")
-                        st.write(email_strat)
-                    with tab4:
-                        st.info("🌐 Homepage & Landing Page Optimization")
-                        st.write(web_strat)
-                    with tab5:
-                        st.info("🛍️ Amazon & 3rd Party Retail Channels")
-                        st.write(ecom_strat)
-                    with tab6:
-                        st.info("🛠️ Product Bundling & Accessory Focus")
-                        st.write(prod_strat)
+                    Format it cleanly with standard spacing. Do not use markdown symbols like asterisks or hashtags in the text body.
+                    """
+                    model = genai.GenerativeModel('gemini-3.5-flash')
+                    detailed_response = model.generate_content(deep_dive_prompt)
+
+                    doc = docx.Document()
+                    doc.add_heading(f'Execution Brief: {manager_role}', 0)
+                    doc.add_heading(f'Campaign Trend: {trend}', 1)
+                    doc.add_paragraph(detailed_response.text)
+
+                    buffer = BytesIO()
+                    doc.save(buffer)
+                    buffer.seek(0)
+                    return buffer
+
+
+                for i, (role, title, strat) in enumerate(manager_data):
+                    with tabs[i]:
+                        st.info(title)
+                        st.write(strat)
+                        st.write("")  # spacing
+
+                        if st.button(f"📥 Draft Detailed .docx Brief for {role}", key=f"btn_{i}"):
+                            with st.spinner(
+                                    "Analyzing keyword tone and generating junior-level implementation brief..."):
+                                docx_file = create_docx(role, strat, selected_trend)
+                                st.download_button(
+                                    label=f"✅ Click to Download {role} Brief",
+                                    data=docx_file,
+                                    file_name=f"Dremel_{role.replace(' ', '_')}_Brief.docx",
+                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                )
 
         except Exception as e:
             st.error(f"Error connecting to Cloud Data: {e}")
@@ -256,9 +320,10 @@ elif page_selection == "ℹ️ About the Project":
     * **NLP Processing:** The system uses Spacy (Natural Language Processing) to extract core topics and filter out conversational noise.
     * **Cloud Database:** The refined keyword data is autonomously pushed to a secure Google Sheets database.
     * **Data Visualization:** Tableau Public connects directly to this live database, rendering an interactive dashboard that updates automatically.
-    * **AI Generation:** The frontend interfaces with Google's Gemini AI to dynamically generate tailored, cross-channel marketing strategies based on the live data.
+    * **AI Generation:** The frontend interfaces with Google's Gemini AI to dynamically generate tailored, cross-channel marketing strategies based on the live data, and now includes automated deep-dive Execution Briefs (.docx) for team hand-offs.
     """)
-    st.info("💡 *Tip: Check out the 'Architecture' pages in the sidebar menu for a deep dive into how the Dashboard and AI Engine code works!*")
+    st.info(
+        "💡 *Tip: Check out the 'Architecture' pages in the sidebar menu for a deep dive into how the Dashboard and AI Engine code works!*")
 
     st.divider()
 
@@ -266,7 +331,8 @@ elif page_selection == "ℹ️ About the Project":
     st.markdown("""
     1. **Analyze the Data:** Go to the 'Live Tools' page and start by exploring the Tableau dashboard. Look for sudden spikes in specific categories to identify what is currently capturing audience attention.
     2. **Select a Trend:** Scroll down to the AI Ideation engine and use the dropdown menu to select one of the high-value keywords identified in the dashboard.
-    3. **Generate Strategy:** Click the **'⚡ Activate AI Virtual Managers'** button. The AI will output a customized, multi-channel campaign tailored specifically around that trending topic across Content, Social, Email, Website, E-commerce, and Product Management.
+    3. **Generate Strategy:** Click the **'⚡ Activate AI Virtual Managers'** button. The AI will output a customized, multi-channel campaign.
+    4. **Execute:** Inside any manager's tab, click the download button to automatically draft a highly detailed, tone-appropriate implementation brief for a junior employee to execute immediately.
     """)
 
 # ==========================================
@@ -318,3 +384,7 @@ elif page_selection == "🏗️ Architecture: AI Engine":
     st.markdown("### 3. Data Parsing & Routing")
     st.write(
         "Large Language Models naturally output raw blocks of text. To create the 'Manager Tabs' UI, the Python backend intercepts the raw text from Google Gemini. It runs a custom `get_section()` parsing function to split the text block apart based on the hidden tags we forced the AI to use. Finally, it routes each specific section of text into Streamlit's isolated UI tabs, creating the illusion of 6 different virtual employees working simultaneously.")
+
+    st.markdown("### 4. Automated Execution Briefs")
+    st.write(
+        "To close the gap between high-level strategy and immediate execution, the system features a document generation engine utilizing `python-docx` and `BytesIO`. When triggered, a secondary AI prompt acts as a Senior Manager, expanding the strategy into granular, step-by-step instructions. The AI analyzes the keyword to dynamically adjust its tone (e.g., professional safety warnings for heavy DIY vs. enthusiastic tone for crafts). The app builds a complete Microsoft Word `.docx` file in the server's short-term memory and securely delivers it directly to the user's desktop, leaving no physical files behind on the server.")
