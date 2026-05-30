@@ -100,10 +100,15 @@ except Exception:
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🎛️ App Navigation")
 
-# THE NEW NAVIGATION DROPDOWN
+# THE NEW NAVIGATION DROPDOWN (Added "ℹ️ About the Project")
 page_selection = st.sidebar.selectbox(
     "Select a Page:",
-    ["🚀 Live Tools", "🏗️ Architecture: Dashboard", "🏗️ Architecture: AI Engine"]
+    [
+        "🚀 Live Tools",
+        "ℹ️ About the Project",
+        "🏗️ Architecture: Dashboard",
+        "🏗️ Architecture: AI Engine"
+    ]
 )
 
 st.sidebar.markdown("---")
@@ -126,7 +131,6 @@ if page_selection == "🚀 Live Tools":
             </div>
         """, unsafe_allow_html=True)
 
-        # PASTE YOUR TABLEAU PUBLIC LINK HERE inside the quotes!
         TABLEAU_URL = "https://public.tableau.com/views/Dremel_TrendsDashboard/LiveDashboard?:language=en-US&publish=yes&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link" + "?:embed=yes&:showVizHome=no"
         st.components.v1.iframe(TABLEAU_URL, width=1200, height=700, scrolling=True)
 
@@ -226,7 +230,47 @@ if page_selection == "🚀 Live Tools":
             st.error(f"Error connecting to Cloud Data: {e}")
 
 # ==========================================
-# PAGE 2: DASHBOARD DOCUMENTATION
+# PAGE 2: ABOUT THE PROJECT (NEW PAGE)
+# ==========================================
+elif page_selection == "ℹ️ About the Project":
+    st.markdown("""
+        <div style="background-color: #00529B; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <h2 style="color: #FFFFFF; margin: 0;">ℹ️ About This Project</h2>
+            <p style="color: #FFFFFF; margin: 0; font-size: 16px;">The context, architecture, and optimal usage of the Dremel AI Hub.</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("### 1. Why this platform was created?")
+    st.write("""
+    This platform was developed to modernize Dremel's marketing strategy by leveraging data-driven insights and artificial intelligence. 
+    Instead of relying on historical assumptions or manual research, this tool actively monitors live consumer interests and DIY trends in the UK. 
+    The goal is to bridge the gap between what target audiences are actively searching for and the multi-channel campaigns Dremel creates, ensuring maximum relevance, engagement, and ROI.
+    """)
+
+    st.divider()
+
+    st.markdown("### 2. How it was created & how it works")
+    st.write("""
+    This application operates on a fully autonomous, production-grade cloud architecture built completely from scratch:
+    * **Data Collection:** A serverless Python script runs nightly via GitHub Actions, scraping the YouTube API for the latest DIY and woodworking trends.
+    * **NLP Processing:** The system uses Spacy (Natural Language Processing) to extract core topics and filter out conversational noise.
+    * **Cloud Database:** The refined keyword data is autonomously pushed to a secure Google Sheets database.
+    * **Data Visualization:** Tableau Public connects directly to this live database, rendering an interactive dashboard that updates automatically.
+    * **AI Generation:** The frontend interfaces with Google's Gemini AI to dynamically generate tailored, cross-channel marketing strategies based on the live data.
+    """)
+    st.info("💡 *Tip: Check out the 'Architecture' pages in the sidebar menu for a deep dive into how the Dashboard and AI Engine code works!*")
+
+    st.divider()
+
+    st.markdown("### 3. How to use this website efficiently")
+    st.markdown("""
+    1. **Analyze the Data:** Go to the 'Live Tools' page and start by exploring the Tableau dashboard. Look for sudden spikes in specific categories to identify what is currently capturing audience attention.
+    2. **Select a Trend:** Scroll down to the AI Ideation engine and use the dropdown menu to select one of the high-value keywords identified in the dashboard.
+    3. **Generate Strategy:** Click the **'⚡ Activate AI Virtual Managers'** button. The AI will output a customized, multi-channel campaign tailored specifically around that trending topic across Content, Social, Email, Website, E-commerce, and Product Management.
+    """)
+
+# ==========================================
+# PAGE 3: DASHBOARD DOCUMENTATION
 # ==========================================
 elif page_selection == "🏗️ Architecture: Dashboard":
     st.markdown("""
@@ -253,7 +297,7 @@ elif page_selection == "🏗️ Architecture: Dashboard":
         "The final UI layer is built in Tableau. Because the dashboard is linked directly to the Google Sheet via an active data connection, it auto-syncs on a 24-hour cycle. The interactive iframe embedded in this app simply requests the most recent, published version of the dashboard from Tableau's servers.")
 
 # ==========================================
-# PAGE 3: AI ENGINE DOCUMENTATION
+# PAGE 4: AI ENGINE DOCUMENTATION
 # ==========================================
 elif page_selection == "🏗️ Architecture: AI Engine":
     st.markdown("""
