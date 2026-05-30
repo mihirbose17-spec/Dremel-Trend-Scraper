@@ -88,10 +88,8 @@ st.markdown("""
 def load_cloud_data():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
-    # If running locally on your laptop, use the file.
     if os.path.exists("dremel-bot-key.json"):
         creds = ServiceAccountCredentials.from_json_keyfile_name("dremel-bot-key.json", scope)
-    # If running on the cloud, use the Streamlit Secrets vault.
     else:
         creds_dict = json.loads(st.secrets["google_sheets"]["json_key"])
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
@@ -111,11 +109,11 @@ except Exception:
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 🎛️ App Navigation")
 
-page_selection = st.sidebar.selectbox(
+# REPLACED SELECTBOX WITH RADIO BUTTONS TO REMOVE SEARCH CAPABILITY
+page_selection = st.sidebar.radio(
     "Select a Page:",
     [
-        "🚀 Live Tools",
-        "ℹ️ About the Project",
+        "🚀 Live Tools & About",
         "🏗️ Architecture: Dashboard",
         "🏗️ Architecture: AI Engine"
     ]
@@ -125,218 +123,234 @@ st.sidebar.markdown("---")
 st.sidebar.info("Developed by Mihir Bose, Powered by AI")
 
 # ==========================================
-# PAGE 1: THE MAIN LIVE TOOLS
+# PAGE 1: THE MAIN LIVE TOOLS & ABOUT TABS
 # ==========================================
-if page_selection == "🚀 Live Tools":
+if page_selection == "🚀 Live Tools & About":
 
-    st.sidebar.markdown("**Tool Display Toggles:**")
-    show_dashboard = st.sidebar.toggle("📊 Live Dashboard", value=True)
-    show_ai = st.sidebar.toggle("🤖 AI Content Generator", value=True)
+    # THE NEW MASTER TABS AT THE TOP OF THE PAGE
+    main_tab1, main_tab2 = st.tabs(["🚀 Live Dashboard & AI Engine", "ℹ️ About the Project"])
 
-    if show_dashboard:
+    # ------------------------------------------
+    # SUB-TAB 1: LIVE TOOLS
+    # ------------------------------------------
+    with main_tab1:
+        st.sidebar.markdown("**Tool Display Toggles:**")
+        show_dashboard = st.sidebar.toggle("📊 Live Dashboard", value=True)
+        show_ai = st.sidebar.toggle("🤖 AI Content Generator", value=True)
+
+        if show_dashboard:
+            st.markdown("""
+                <div style="background-color: #00529B; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <h2 style="color: #FFFFFF; margin: 0;">📊 Live Trend Engine Dashboard</h2>
+                    <p style="color: #FFFFFF; margin: 0; font-size: 16px;">Interact with the live data below to spot the fastest-growing DIY categories.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+            TABLEAU_URL = "https://public.tableau.com/views/Dremel_TrendsDashboard/LiveDashboard?:language=en-US&publish=yes&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link?:embed=yes&:showVizHome=no"
+            st.components.v1.iframe(TABLEAU_URL, width=1200, height=700, scrolling=True)
+
+        if show_dashboard and show_ai:
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            st.markdown("---")
+            st.markdown("<br><br>", unsafe_allow_html=True)
+
+        if show_ai:
+            st.markdown("""
+                <div style="background-color: #00529B; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <h2 style="color: #FFFFFF; margin: 0;">🤖 Dremel AI Ideation Center 🚀</h2>
+                    <p style="color: #FFFFFF; margin: 0; font-size: 16px;">Instantly translate rising trends into cross-channel marketing strategies.</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+            try:
+                df = load_cloud_data()
+                unique_keywords = sorted(df['Keyword'].dropna().unique())
+
+                st.subheader("🎯 Step 1: Target a Trend")
+
+                # SEPARATED THE DROPDOWN AND THE SEARCH BAR INTO TWO COLUMNS
+                col1, col2 = st.columns(2)
+                with col1:
+                    dropdown_trend = st.selectbox("📂 Select from live trending topics:", unique_keywords)
+                with col2:
+                    custom_trend = st.text_input("🔍 OR type a custom search keyword here:")
+
+                st.write("")
+
+                # Determine which input the user is trying to use
+                selected_trend = custom_trend if custom_trend else dropdown_trend
+
+                if "ai_raw_text" not in st.session_state:
+                    st.session_state.ai_raw_text = None
+                if "current_trend" not in st.session_state:
+                    st.session_state.current_trend = None
+
+                # Reset the text if the user picks a new trend
+                if st.session_state.current_trend != selected_trend:
+                    st.session_state.ai_raw_text = None
+                    st.session_state.current_trend = selected_trend
+
+                if st.button("⚡ Activate AI Virtual Managers", type="primary"):
+                    with st.spinner(f"Coordinating with virtual managers to analyze '{selected_trend}'..."):
+                        prompt = f"""
+                        You are a team of expert digital marketing managers at Dremel UK. 
+                        The automated data engine has identified '{selected_trend}' as a major rising trend on YouTube UK.
+                        Provide actionable, specific tasks for each of the following 6 managers. Keep each role's response to 2-3 clear, high-impact bullet points and use professional language tailored to Dremel's rotary tools and solutions.
+                        Format your entire response EXACTLY like this so the app can read it:
+                        [CONTENT]
+                        - Bullet 1
+                        [SOCIAL]
+                        - Bullet 1
+                        [EMAIL]
+                        - Bullet 1
+                        [WEBSITE]
+                        - Bullet 1
+                        [ECOMMERCE]
+                        - Bullet 1
+                        [PRODUCT]
+                        - Bullet 1
+                        """
+                        model = genai.GenerativeModel('gemini-3.5-flash')
+                        response = model.generate_content(prompt)
+                        st.session_state.ai_raw_text = response.text
+
+                # --- RENDER THE TABS & DOCUMENT GENERATOR ---
+                if st.session_state.ai_raw_text:
+                    def get_section(text, tag):
+                        try:
+                            parts = text.split(f"[{tag}]")
+                            if len(parts) > 1:
+                                return parts[1].split("[")[0].strip()
+                            return "Strategy formulation in progress..."
+                        except:
+                            return "Strategy formulation in progress..."
+
+
+                    content_strat = get_section(st.session_state.ai_raw_text, "CONTENT")
+                    social_strat = get_section(st.session_state.ai_raw_text, "SOCIAL")
+                    email_strat = get_section(st.session_state.ai_raw_text, "EMAIL")
+                    web_strat = get_section(st.session_state.ai_raw_text, "WEBSITE")
+                    ecom_strat = get_section(st.session_state.ai_raw_text, "ECOMMERCE")
+                    prod_strat = get_section(st.session_state.ai_raw_text, "PRODUCT")
+
+                    st.markdown("---")
+                    st.subheader(f"📋 Operational Action Plan: {selected_trend.upper()}")
+
+                    tabs = st.tabs([
+                        "Content Manager", "Social Media", "Email Marketing",
+                        "Website Manager", "3rd Party E-Com", "Product Manager"
+                    ])
+
+                    manager_data = [
+                        ("Content Manager", "🎬 Video & Content Strategy", content_strat),
+                        ("Social Media", "📱 Social Media & Influencer Partnerships", social_strat),
+                        ("Email Marketing", "✉️ Email Campaign & Retention", email_strat),
+                        ("Website Manager", "🌐 Homepage & Landing Page Optimization", web_strat),
+                        ("3rd Party E-Com", "🛍️ Amazon & 3rd Party Retail Channels", ecom_strat),
+                        ("Product Manager", "🛠️ Product Bundling & Accessory Focus", prod_strat)
+                    ]
+
+
+                    def create_docx(manager_role, strategy_bullets, trend):
+                        deep_dive_prompt = f"""
+                        You are a Senior {manager_role} at Dremel. You need to hand off the following strategy to a junior coordinator for immediate execution.
+                        The trending topic is: {trend}.
+                        The high-level strategy is: 
+                        {strategy_bullets}
+
+                        TONE & SAFETY DIRECTIVE:
+                        Analyze the trend '{trend}'. 
+                        - If it involves heavy-duty, complex, or serious DIY work (e.g., cutting, metalwork, routing), adopt a highly professional tone and include strict, specific safety precautions (PPE, proper tool handling).
+                        - If it is a fun, craft-based, or light make-at-home project (e.g., jewelry, simple decor), adopt an enthusiastic, creative tone, but still explicitly mention essential basic safety tips.
+
+                        Write a highly detailed, step-by-step implementation brief. The structure must be clear and leave zero confusion for the junior employee.
+                        Include exactly these sections:
+                        1. Exact Actionable Steps for each bullet point.
+                        2. Specifications: Required channels, image aspect ratios, hashtags, specific Dremel tool requirements, or design guidelines where relevant.
+                        3. UGC Strategy: A specific playbook on how to source, incentivize, and integrate User Generated Content (UGC) for this campaign.
+                        4. Success Metrics: KPIs the junior employee should track.
+
+                        Format it cleanly with standard spacing. Do not use markdown symbols like asterisks or hashtags in the text body.
+                        """
+                        model = genai.GenerativeModel('gemini-3.5-flash')
+                        detailed_response = model.generate_content(deep_dive_prompt)
+
+                        doc = docx.Document()
+                        doc.add_heading(f'Execution Brief: {manager_role}', 0)
+                        doc.add_heading(f'Campaign Trend: {trend}', 1)
+                        doc.add_paragraph(detailed_response.text)
+
+                        buffer = BytesIO()
+                        doc.save(buffer)
+                        buffer.seek(0)
+                        return buffer
+
+
+                    for i, (role, title, strat) in enumerate(manager_data):
+                        with tabs[i]:
+                            st.info(title)
+                            st.write(strat)
+                            st.write("")
+
+                            if st.button(f"📥 Draft Detailed .docx Brief for {role}", key=f"btn_{i}"):
+                                with st.spinner(
+                                        "Analyzing keyword tone and generating junior-level implementation brief..."):
+                                    docx_file = create_docx(role, strat, selected_trend)
+                                    st.download_button(
+                                        label=f"✅ Click to Download {role} Brief",
+                                        data=docx_file,
+                                        file_name=f"Dremel_{role.replace(' ', '_')}_Brief.docx",
+                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                                    )
+
+            except Exception as e:
+                st.error(f"Error connecting to Cloud Data: {e}")
+
+    # ------------------------------------------
+    # SUB-TAB 2: ABOUT THE PROJECT
+    # ------------------------------------------
+    with main_tab2:
         st.markdown("""
             <div style="background-color: #00529B; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                <h2 style="color: #FFFFFF; margin: 0;">📊 Live Trend Engine Dashboard</h2>
-                <p style="color: #FFFFFF; margin: 0; font-size: 16px;">Interact with the live data below to spot the fastest-growing DIY categories.</p>
+                <h2 style="color: #FFFFFF; margin: 0;">ℹ️ About This Project</h2>
+                <p style="color: #FFFFFF; margin: 0; font-size: 16px;">The context, architecture, and optimal usage of the Dremel AI Hub.</p>
             </div>
         """, unsafe_allow_html=True)
 
-        TABLEAU_URL = "https://public.tableau.com/views/Dremel_TrendsDashboard/LiveDashboard?:language=en-US&publish=yes&:sid=&:redirect=auth&:display_count=n&:origin=viz_share_link?:embed=yes&:showVizHome=no"
-        st.components.v1.iframe(TABLEAU_URL, width=1200, height=700, scrolling=True)
+        st.markdown("### 1. Why this platform was created?")
+        st.write("""
+        This platform was developed to modernize Dremel's marketing strategy by leveraging data-driven insights and artificial intelligence. 
+        Instead of relying on historical assumptions or manual research, this tool actively monitors live consumer interests and DIY trends in the UK. 
+        The goal is to bridge the gap between what target audiences are actively searching for and the multi-channel campaigns Dremel creates, ensuring maximum relevance, engagement, and ROI.
+        """)
 
-    if show_dashboard and show_ai:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        st.markdown("---")
-        st.markdown("<br><br>", unsafe_allow_html=True)
+        st.divider()
 
-    if show_ai:
+        st.markdown("### 2. How it was created & how it works")
+        st.write("""
+        This application operates on a fully autonomous, production-grade cloud architecture built completely from scratch:
+        * **Data Collection:** A serverless Python script runs nightly via GitHub Actions, scraping the YouTube API for the latest DIY and woodworking trends.
+        * **NLP Processing:** The system uses Spacy (Natural Language Processing) to extract core topics and filter out conversational noise.
+        * **Cloud Database:** The refined keyword data is autonomously pushed to a secure Google Sheets database.
+        * **Data Visualization:** Tableau Public connects directly to this live database, rendering an interactive dashboard that updates automatically.
+        * **AI Generation:** The frontend interfaces with Google's Gemini AI to dynamically generate tailored, cross-channel marketing strategies based on the live data, and now includes automated deep-dive Execution Briefs (.docx) for team hand-offs.
+        """)
+        st.info(
+            "💡 *Tip: Check out the 'Architecture' pages in the sidebar menu for a deep dive into how the Dashboard and AI Engine code works!*")
+
+        st.divider()
+
+        st.markdown("### 3. How to use this website efficiently")
         st.markdown("""
-            <div style="background-color: #00529B; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                <h2 style="color: #FFFFFF; margin: 0;">🤖 Dremel AI Ideation Center 🚀</h2>
-                <p style="color: #FFFFFF; margin: 0; font-size: 16px;">Instantly translate rising trends into cross-channel marketing strategies.</p>
-            </div>
-        """, unsafe_allow_html=True)
+        1. **Analyze the Data:** Go to the 'Live Tools' page and start by exploring the Tableau dashboard. Look for sudden spikes in specific categories to identify what is currently capturing audience attention.
+        2. **Select a Trend:** Scroll down to the AI Ideation engine and use the dropdown menu to select one of the high-value keywords identified in the dashboard, or use the custom text search box.
+        3. **Generate Strategy:** Click the **'⚡ Activate AI Virtual Managers'** button. The AI will output a customized, multi-channel campaign.
+        4. **Execute:** Inside any manager's tab, click the download button to automatically draft a highly detailed, tone-appropriate implementation brief for a junior employee to execute immediately.
+        """)
 
-        try:
-            df = load_cloud_data()
-            unique_keywords = sorted(df['Keyword'].dropna().unique())
-
-            st.subheader("🎯 Step 1: Target a Trend")
-            selected_trend = st.selectbox("Click inside the box to search or select a hot topic:", unique_keywords)
-            st.write("")
-
-            # --- Session State to save AI memory during downloads ---
-            if "ai_raw_text" not in st.session_state:
-                st.session_state.ai_raw_text = None
-            if "current_trend" not in st.session_state:
-                st.session_state.current_trend = None
-
-            # Reset the text if the user picks a new trend
-            if st.session_state.current_trend != selected_trend:
-                st.session_state.ai_raw_text = None
-                st.session_state.current_trend = selected_trend
-
-            if st.button("⚡ Activate AI Virtual Managers", type="primary"):
-                with st.spinner(f"Coordinating with virtual managers to analyze '{selected_trend}'..."):
-                    prompt = f"""
-                    You are a team of expert digital marketing managers at Dremel UK. 
-                    The automated data engine has identified '{selected_trend}' as a major rising trend on YouTube UK.
-                    Provide actionable, specific tasks for each of the following 6 managers. Keep each role's response to 2-3 clear, high-impact bullet points and use professional language tailored to Dremel's rotary tools and solutions.
-                    Format your entire response EXACTLY like this so the app can read it:
-                    [CONTENT]
-                    - Bullet 1
-                    [SOCIAL]
-                    - Bullet 1
-                    [EMAIL]
-                    - Bullet 1
-                    [WEBSITE]
-                    - Bullet 1
-                    [ECOMMERCE]
-                    - Bullet 1
-                    [PRODUCT]
-                    - Bullet 1
-                    """
-                    model = genai.GenerativeModel('gemini-3.5-flash')
-                    response = model.generate_content(prompt)
-                    st.session_state.ai_raw_text = response.text
-
-            # --- RENDER THE TABS & DOCUMENT GENERATOR ---
-            if st.session_state.ai_raw_text:
-                def get_section(text, tag):
-                    try:
-                        parts = text.split(f"[{tag}]")
-                        if len(parts) > 1:
-                            return parts[1].split("[")[0].strip()
-                        return "Strategy formulation in progress..."
-                    except:
-                        return "Strategy formulation in progress..."
-
-
-                content_strat = get_section(st.session_state.ai_raw_text, "CONTENT")
-                social_strat = get_section(st.session_state.ai_raw_text, "SOCIAL")
-                email_strat = get_section(st.session_state.ai_raw_text, "EMAIL")
-                web_strat = get_section(st.session_state.ai_raw_text, "WEBSITE")
-                ecom_strat = get_section(st.session_state.ai_raw_text, "ECOMMERCE")
-                prod_strat = get_section(st.session_state.ai_raw_text, "PRODUCT")
-
-                st.markdown("---")
-                st.subheader(f"📋 Operational Action Plan: {selected_trend.upper()}")
-
-                tabs = st.tabs([
-                    "Content Manager", "Social Media", "Email Marketing",
-                    "Website Manager", "3rd Party E-Com", "Product Manager"
-                ])
-
-                manager_data = [
-                    ("Content Manager", "🎬 Video & Content Strategy", content_strat),
-                    ("Social Media", "📱 Social Media & Influencer Partnerships", social_strat),
-                    ("Email Marketing", "✉️ Email Campaign & Retention", email_strat),
-                    ("Website Manager", "🌐 Homepage & Landing Page Optimization", web_strat),
-                    ("3rd Party E-Com", "🛍️ Amazon & 3rd Party Retail Channels", ecom_strat),
-                    ("Product Manager", "🛠️ Product Bundling & Accessory Focus", prod_strat)
-                ]
-
-
-                # --- The AI Document Generator Engine ---
-                def create_docx(manager_role, strategy_bullets, trend):
-                    deep_dive_prompt = f"""
-                    You are a Senior {manager_role} at Dremel. You need to hand off the following strategy to a junior coordinator for immediate execution.
-                    The trending topic is: {trend}.
-                    The high-level strategy is: 
-                    {strategy_bullets}
-
-                    TONE & SAFETY DIRECTIVE:
-                    Analyze the trend '{trend}'. 
-                    - If it involves heavy-duty, complex, or serious DIY work (e.g., cutting, metalwork, routing), adopt a highly professional tone and include strict, specific safety precautions (PPE, proper tool handling).
-                    - If it is a fun, craft-based, or light make-at-home project (e.g., jewelry, simple decor), adopt an enthusiastic, creative tone, but still explicitly mention essential basic safety tips.
-
-                    Write a highly detailed, step-by-step implementation brief. The structure must be clear and leave zero confusion for the junior employee.
-                    Include exactly these sections:
-                    1. Exact Actionable Steps for each bullet point.
-                    2. Specifications: Required channels, image aspect ratios, hashtags, specific Dremel tool requirements, or design guidelines where relevant.
-                    3. UGC Strategy: A specific playbook on how to source, incentivize, and integrate User Generated Content (UGC) for this campaign.
-                    4. Success Metrics: KPIs the junior employee should track.
-
-                    Format it cleanly with standard spacing. Do not use markdown symbols like asterisks or hashtags in the text body.
-                    """
-                    model = genai.GenerativeModel('gemini-3.5-flash')
-                    detailed_response = model.generate_content(deep_dive_prompt)
-
-                    doc = docx.Document()
-                    doc.add_heading(f'Execution Brief: {manager_role}', 0)
-                    doc.add_heading(f'Campaign Trend: {trend}', 1)
-                    doc.add_paragraph(detailed_response.text)
-
-                    buffer = BytesIO()
-                    doc.save(buffer)
-                    buffer.seek(0)
-                    return buffer
-
-
-                for i, (role, title, strat) in enumerate(manager_data):
-                    with tabs[i]:
-                        st.info(title)
-                        st.write(strat)
-                        st.write("")  # spacing
-
-                        if st.button(f"📥 Draft Detailed .docx Brief for {role}", key=f"btn_{i}"):
-                            with st.spinner(
-                                    "Analyzing keyword tone and generating junior-level implementation brief..."):
-                                docx_file = create_docx(role, strat, selected_trend)
-                                st.download_button(
-                                    label=f"✅ Click to Download {role} Brief",
-                                    data=docx_file,
-                                    file_name=f"Dremel_{role.replace(' ', '_')}_Brief.docx",
-                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                )
-
-        except Exception as e:
-            st.error(f"Error connecting to Cloud Data: {e}")
 
 # ==========================================
-# PAGE 2: ABOUT THE PROJECT (NEW PAGE)
-# ==========================================
-elif page_selection == "ℹ️ About the Project":
-    st.markdown("""
-        <div style="background-color: #00529B; padding: 20px; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-            <h2 style="color: #FFFFFF; margin: 0;">ℹ️ About This Project</h2>
-            <p style="color: #FFFFFF; margin: 0; font-size: 16px;">The context, architecture, and optimal usage of the Dremel AI Hub.</p>
-        </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("### 1. Why this platform was created?")
-    st.write("""
-    This platform was developed to modernize Dremel's marketing strategy by leveraging data-driven insights and artificial intelligence. 
-    Instead of relying on historical assumptions or manual research, this tool actively monitors live consumer interests and DIY trends in the UK. 
-    The goal is to bridge the gap between what target audiences are actively searching for and the multi-channel campaigns Dremel creates, ensuring maximum relevance, engagement, and ROI.
-    """)
-
-    st.divider()
-
-    st.markdown("### 2. How it was created & how it works")
-    st.write("""
-    This application operates on a fully autonomous, production-grade cloud architecture built completely from scratch:
-    * **Data Collection:** A serverless Python script runs nightly via GitHub Actions, scraping the YouTube API for the latest DIY and woodworking trends.
-    * **NLP Processing:** The system uses Spacy (Natural Language Processing) to extract core topics and filter out conversational noise.
-    * **Cloud Database:** The refined keyword data is autonomously pushed to a secure Google Sheets database.
-    * **Data Visualization:** Tableau Public connects directly to this live database, rendering an interactive dashboard that updates automatically.
-    * **AI Generation:** The frontend interfaces with Google's Gemini AI to dynamically generate tailored, cross-channel marketing strategies based on the live data, and now includes automated deep-dive Execution Briefs (.docx) for team hand-offs.
-    """)
-    st.info(
-        "💡 *Tip: Check out the 'Architecture' pages in the sidebar menu for a deep dive into how the Dashboard and AI Engine code works!*")
-
-    st.divider()
-
-    st.markdown("### 3. How to use this website efficiently")
-    st.markdown("""
-    1. **Analyze the Data:** Go to the 'Live Tools' page and start by exploring the Tableau dashboard. Look for sudden spikes in specific categories to identify what is currently capturing audience attention.
-    2. **Select a Trend:** Scroll down to the AI Ideation engine and use the dropdown menu to select one of the high-value keywords identified in the dashboard.
-    3. **Generate Strategy:** Click the **'⚡ Activate AI Virtual Managers'** button. The AI will output a customized, multi-channel campaign.
-    4. **Execute:** Inside any manager's tab, click the download button to automatically draft a highly detailed, tone-appropriate implementation brief for a junior employee to execute immediately.
-    """)
-
-# ==========================================
-# PAGE 3: DASHBOARD DOCUMENTATION
+# PAGE 2: DASHBOARD DOCUMENTATION
 # ==========================================
 elif page_selection == "🏗️ Architecture: Dashboard":
     st.markdown("""
@@ -363,7 +377,7 @@ elif page_selection == "🏗️ Architecture: Dashboard":
         "The final UI layer is built in Tableau. Because the dashboard is linked directly to the Google Sheet via an active data connection, it auto-syncs on a 24-hour cycle. The interactive iframe embedded in this app simply requests the most recent, published version of the dashboard from Tableau's servers.")
 
 # ==========================================
-# PAGE 4: AI ENGINE DOCUMENTATION
+# PAGE 3: AI ENGINE DOCUMENTATION
 # ==========================================
 elif page_selection == "🏗️ Architecture: AI Engine":
     st.markdown("""
