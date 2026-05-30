@@ -168,17 +168,13 @@ if page_selection == "🚀 Live Tools & About":
 
                 st.subheader("🎯 Step 1: Target a Trend")
 
-                # SEPARATED THE DROPDOWN AND THE SEARCH BAR INTO TWO COLUMNS
-                col1, col2 = st.columns(2)
-                with col1:
-                    dropdown_trend = st.selectbox("📂 Select from live trending topics:", unique_keywords)
-                with col2:
-                    custom_trend = st.text_input("🔍 OR type a custom search keyword here:")
+                # --- REVERTED BACK TO A SINGLE SEARCH/DROPDOWN BOX ---
+                selected_trend = st.selectbox(
+                    "Click inside the box to select a trend from the list, OR type directly to search for one:",
+                    unique_keywords
+                )
 
                 st.write("")
-
-                # Determine which input the user is trying to use
-                selected_trend = custom_trend if custom_trend else dropdown_trend
 
                 if "ai_raw_text" not in st.session_state:
                     st.session_state.ai_raw_text = None
@@ -343,7 +339,7 @@ if page_selection == "🚀 Live Tools & About":
         st.markdown("### 3. How to use this website efficiently")
         st.markdown("""
         1. **Analyze the Data:** Go to the 'Live Tools' page and start by exploring the Tableau dashboard. Look for sudden spikes in specific categories to identify what is currently capturing audience attention.
-        2. **Select a Trend:** Scroll down to the AI Ideation engine and use the dropdown menu to select one of the high-value keywords identified in the dashboard, or use the custom text search box.
+        2. **Select a Trend:** Scroll down to the AI Ideation engine and select a high-value keyword from the dropdown (or type directly in the box to search).
         3. **Generate Strategy:** Click the **'⚡ Activate AI Virtual Managers'** button. The AI will output a customized, multi-channel campaign.
         4. **Execute:** Inside any manager's tab, click the download button to automatically draft a highly detailed, tone-appropriate implementation brief for a junior employee to execute immediately.
         """)
