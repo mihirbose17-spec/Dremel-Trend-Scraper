@@ -206,7 +206,7 @@ if page_selection == "🚀 Live Tools & About":
                         [PRODUCT]
                         - Bullet 1
                         """
-                        model = genai.GenerativeModel('gemini-2.5-flash')
+                        model = genai.GenerativeModel('gemma-4-31b-it')
                         response = model.generate_content(prompt)
                         st.session_state.ai_raw_text = response.text
 
@@ -268,7 +268,7 @@ if page_selection == "🚀 Live Tools & About":
 
                         Format it cleanly with standard spacing. Do not use markdown symbols like asterisks or hashtags in the text body.
                         """
-                        model = genai.GenerativeModel('gemini-2.5-flash')
+                        model = genai.GenerativeModel('gemma-4-31b-it')
                         detailed_response = model.generate_content(deep_dive_prompt)
 
                         doc = docx.Document()
